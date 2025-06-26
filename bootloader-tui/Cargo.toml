@@ -1,0 +1,11 @@
+[package]
+name = "bootloader-tui"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+
+[dependencies]
+r-efi.workspace = true
+ratatui.workspace = true
+
+
