@@ -1,34 +1,28 @@
 use ratatui::style::Color;
+use uefi::proto::console::text::Color as UefiColor;
 
 pub trait ToUefiColor {
-    fn to_uefi_color(&self) -> usize;
+    fn to_uefi_color(&self) -> UefiColor;
 }
 
 impl ToUefiColor for Color {
-    fn to_uefi_color(&self) -> usize {
+    fn to_uefi_color(&self) -> UefiColor {
         match self {
-            Color::Black => 0x00,
-            Color::Blue => 0x01,
-            Color::Green => 0x02,
-            Color::Cyan => 0x03,
-            Color::Red => 0x04,
-            Color::Magenta => 0x05,
-            Color::DarkGray => 0x08,
-            Color::LightBlue => 0x09,
-            Color::LightGreen => 0x0A,
-            Color::LightCyan => 0x0B,
-            Color::LightRed => 0x0C,
-            Color::LightMagenta => 0x0D,
-            Color::Yellow => 0x0E,
-            Color::White => 0x0F,
-            _ => 0x00, // unsupported colours
+            Color::Black => UefiColor::Black,
+            Color::Blue => UefiColor::Blue,
+            Color::Green => UefiColor::Green,
+            Color::Cyan => UefiColor::Cyan,
+            Color::Red => UefiColor::Red,
+            Color::Magenta => UefiColor::Magenta,
+            Color::DarkGray => UefiColor::DarkGray,
+            Color::LightBlue => UefiColor::LightBlue,
+            Color::LightGreen => UefiColor::LightGreen,
+            Color::LightCyan => UefiColor::LightCyan,
+            Color::LightRed => UefiColor::LightRed,
+            Color::LightMagenta => UefiColor::LightMagenta,
+            Color::Yellow => UefiColor::Yellow,
+            Color::White => UefiColor::White,
+            _ => UefiColor::White, // unsupported colours
         }
-    }
-}
-
-impl ToUefiColor for (Color, Color) {
-    fn to_uefi_color(&self) -> usize {
-        let (fg, bg) = self;
-        (bg.to_uefi_color() << 4) | fg.to_uefi_color()
     }
 }

@@ -5,7 +5,5 @@ edition = "2024"
 license = "GPL-3.0-only"
 
 [dependencies]
-r-efi.workspace = true
+uefi.workspace = true
 ratatui.workspace = true
-
-

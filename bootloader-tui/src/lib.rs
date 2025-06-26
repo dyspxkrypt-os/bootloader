@@ -1,120 +1,109 @@
-use crate::color::ToUefiColor;
-use crate::error::UefiStopError;
-use r_efi::base::Boolean;
-use r_efi::protocols::simple_text_output::Protocol as SimpleTextOutputProtocol;
+use std::fmt::Write;
 use ratatui::backend::{Backend, ClearType, WindowSize};
 use ratatui::buffer::Cell;
 use ratatui::layout::{Position, Size};
+use uefi::boot::ScopedProtocol;
+use uefi::{Error as UefiError, Status};
+use uefi::proto::console::text::Output;
+use crate::color::ToUefiColor;
 
 mod color;
 mod error;
 
-pub struct UefiStopBackend {
-    stop: SimpleTextOutputProtocol,
+#[derive(Default)]
+pub struct UefiBackend {
+    proto: Option<ScopedProtocol<Output>>,
 }
 
-impl UefiStopBackend {
-    pub fn new(stop: SimpleTextOutputProtocol) -> UefiStopBackend {
-        Self { stop }
+impl UefiBackend {
+    pub fn new(proto: ScopedProtocol<Output>) -> Self {
+        Self { proto: Some(proto) }
     }
 }
 
-impl Backend for UefiStopBackend {
-    type Error = UefiStopError;
+impl Backend for UefiBackend {
+    type Error = UefiError;
 
     fn draw<'a, I>(&mut self, content: I) -> Result<(), Self::Error>
     where
         I: Iterator<Item = (u16, u16, &'a Cell)>,
     {
+        let Some(proto) = &mut self.proto else {
+            return Err(UefiError::from(Status::UNSUPPORTED));
+        };
+        
         for (x, y, cell) in content {
-            let mut status =
-                (self.stop.set_cursor_position)(&mut self.stop, x as usize, y as usize);
-            if status.is_error() {
-                return Err(UefiStopError(status));
-            }
-
-            let color = (cell.fg, cell.bg).to_uefi_color();
-            status = (self.stop.set_attribute)(&mut self.stop, color);
-            if status.is_error() {
-                return Err(UefiStopError(status));
-            }
-
-            let bytes = cell.symbol().as_bytes();
-            let mut buf = [0u16; 2];
-            buf[0] = bytes[0] as u16;
-            buf[1] = 0;
-
-            status = (self.stop.output_string)(&mut self.stop, buf.as_mut_ptr());
-            if status.is_error() {
-                return Err(UefiStopError(status));
-            }
+            proto.set_cursor_position(x as usize, y as usize)?;
+            proto.set_color(cell.fg.to_uefi_color(), cell.bg.to_uefi_color())?;
+            proto.write_str(cell.symbol()).map_err(|_| UefiError::from(Status::ABORTED))?;
         }
 
         Ok(())
     }
 
     fn hide_cursor(&mut self) -> Result<(), Self::Error> {
-        let status = (self.stop.enable_cursor)(&mut self.stop, Boolean::FALSE);
-        if status.is_error() {
-            return Err(UefiStopError(status));
-        }
-
-        Ok(())
+        let Some(proto) = &mut self.proto else {
+            return Err(UefiError::from(Status::UNSUPPORTED));
+        };
+        
+        proto.enable_cursor(false)
     }
 
     fn show_cursor(&mut self) -> Result<(), Self::Error> {
-        let status = (self.stop.enable_cursor)(&mut self.stop, Boolean::TRUE);
-        if status.is_error() {
-            return Err(UefiStopError(status));
-        }
-
-        Ok(())
+        let Some(proto) = &mut self.proto else {
+            return Err(UefiError::from(Status::UNSUPPORTED));
+        };
+        
+        proto.enable_cursor(true)
     }
 
     fn get_cursor_position(&mut self) -> Result<Position, Self::Error> {
-        unsafe {
-            Ok(Position::new(
-                (*self.stop.mode).cursor_row as u16,
-                (*self.stop.mode).cursor_column as u16,
-            ))
-        }
+        let Some(proto) = &mut self.proto else {
+            return Err(UefiError::from(Status::UNSUPPORTED));
+        };
+        
+        let (col, row) = proto.cursor_position();
+        Ok(Position::new(col as u16, row as u16))
     }
 
     fn set_cursor_position<P: Into<Position>>(&mut self, position: P) -> Result<(), Self::Error> {
+        let Some(proto) = &mut self.proto else {
+            return Err(UefiError::from(Status::UNSUPPORTED));
+        };
+        
         let pos = position.into();
-
-        let status = (self.stop.set_cursor_position)(&mut self.stop, pos.x as usize, pos.y as usize);
-        if status.is_error() {
-            return Err(UefiStopError(status));
-        }
-
-        Ok(())
+        proto.set_cursor_position(pos.x as usize, pos.y as usize)
     }
 
     fn clear(&mut self) -> Result<(), Self::Error> {
-        let status = (self.stop.clear_screen)(&mut self.stop);
-        if status.is_error() {
-            return Err(UefiStopError(status));
-        }
-
-        Ok(())
+        let Some(proto) = &mut self.proto else {
+            return Err(UefiError::from(Status::UNSUPPORTED));
+        };
+        
+        proto.clear()
     }
 
     fn clear_region(&mut self, _: ClearType) -> Result<(), Self::Error> {
-        unimplemented!("clear region is unsupported for this backend");
+        Err(UefiError::from(Status::UNSUPPORTED))
     }
 
     fn size(&self) -> Result<Size, Self::Error> {
-        let _ = (self.stop.query_mode)(&mut self.stop, )
+        let Some(proto) = &self.proto else {
+            return Err(UefiError::from(Status::UNSUPPORTED));
+        };
         
-        todo!()
+        let Some(mode) = proto.current_mode()? else {
+            return Err(UefiError::from(Status::UNSUPPORTED));
+        };
+        
+        Ok(Size::new(mode.columns() as u16, mode.rows() as u16))
     }
 
     fn window_size(&mut self) -> Result<WindowSize, Self::Error> {
-        todo!()
+        Err(UefiError::from(Status::UNSUPPORTED))
     }
 
     fn flush(&mut self) -> Result<(), Self::Error> {
-        todo!()
+        Ok(())
     }
 }
