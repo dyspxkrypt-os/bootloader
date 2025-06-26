@@ -6,14 +6,14 @@ mod app;
 use crate::app::BootloaderApp;
 use bootloader_tui::UefiBackend;
 use ratatui::Terminal;
-use uefi::boot::image_handle;
+use uefi::boot::{image_handle, open_protocol_exclusive};
 use uefi::proto::console::text::Output;
-use uefi::{Status, boot, entry};
+use uefi::{Status, entry};
 
 #[entry]
 pub fn main() -> Status {
     let handle = image_handle();
-    let proto = boot::open_protocol_exclusive::<Output>(handle).unwrap();
+    let proto = open_protocol_exclusive::<Output>(handle).unwrap();
     let tui_backend = UefiBackend::new(proto);
 
     let mut terminal = Terminal::new(tui_backend).unwrap();
